@@ -43,12 +43,13 @@ class ThreadPool : public pstd::noncopyable {
     int start();
     int stop();
     void Schedule(TaskFunc func, void* arg);
+    size_t cur_queue_size();
+    size_t cur_time_queue_size();
+
 
    private:
     void runInThread();
     size_t max_queue_size();
-    void cur_queue_size(size_t* qsize);
-    void cur_time_queue_size(size_t* qsize);
     void DelaySchedule(uint64_t timeout, TaskFunc func, void* arg);
     bool should_stop();
     void set_should_stop();
