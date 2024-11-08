@@ -14,7 +14,7 @@
 namespace net {
 
 void* ThreadPool::Worker::WorkerMain(void* arg) {
-  auto tp = static_cast<ThreadPool*>(arg);
+  auto tp = static_cast<Worker*>(arg);
   tp->runInThread();
   return nullptr;
 }
@@ -33,6 +33,9 @@ int ThreadPool::Worker::start() {
 }
 
 int ThreadPool::Worker::stop() {
+  should_stop_.store(true);
+  rsignal_.notify_all();
+  wsignal_.notify_all();
   if (start_.load()) {
     if (pthread_join(thread_id_, nullptr) != 0) {
       return -1;
@@ -43,20 +46,19 @@ int ThreadPool::Worker::stop() {
   return 0;
 }
 
-ThreadPool::ThreadPool(size_t worker_num, size_t max_queue_size, std::string  thread_pool_name)
+ThreadPool::ThreadPool(size_t worker_num, size_t max_queue_size, std::string thread_pool_name)
     : worker_num_(worker_num),
       max_queue_size_(max_queue_size),
       thread_pool_name_(std::move(thread_pool_name)),
       running_(false),
-      should_stop_(false) {}
+      last_thread_(0) {}
 
 ThreadPool::~ThreadPool() { stop_thread_pool(); }
 
 int ThreadPool::start_thread_pool() {
   if (!running_.load()) {
-    should_stop_.store(false);
     for (size_t i = 0; i < worker_num_; ++i) {
-      workers_.push_back(new Worker(this));
+      workers_.push_back(new Worker(this, max_queue_size_));
       int res = workers_[i]->start();
       if (res != 0) {
         return kCreateThreadError;
@@ -70,9 +72,6 @@ int ThreadPool::start_thread_pool() {
 int ThreadPool::stop_thread_pool() {
   int res = 0;
   if (running_.load()) {
-    should_stop_.store(true);
-    rsignal_.notify_all();
-    wsignal_.notify_all();
     for (const auto worker : workers_) {
       res = worker->stop();
       if (res != 0) {
@@ -87,24 +86,33 @@ int ThreadPool::stop_thread_pool() {
   return res;
 }
 
-bool ThreadPool::should_stop() { return should_stop_.load(); }
+bool ThreadPool::Worker::should_stop() { return should_stop_.load(); }
 
-void ThreadPool::set_should_stop() { should_stop_.store(true); }
+void ThreadPool::Worker::set_should_stop() { should_stop_.store(true); }
 
-void ThreadPool::Schedule(TaskFunc func, void* arg) {
-  std::unique_lock lock(mu_);
-  wsignal_.wait(lock, [this]() { return queue_.size() < max_queue_size_ || should_stop(); });
-
-  if (!should_stop()) {
+void ThreadPool::Worker::Schedule(TaskFunc func, void* arg) {
+  std::lock_guard lock(mu_);
+  //wsignal_.wait(lock, [worker]() { return queue_.size() < thread_pool_->max_queue_size_ || thread_pool_->should_stop(); });
+  if (queue_.size() < max_queue_size_ && !should_stop()) {
     queue_.emplace(func, arg);
     rsignal_.notify_one();
+  }
+}
+
+void ThreadPool::Schedule(TaskFunc func, void* arg) {
+  int next_thread = last_thread_;
+  bool find = false;
+  for (int cnt = 0; cnt < worker_num_; cnt++) {
+    Worker* worker = workers_[next_thread];
+    worker->Schedule(func, arg);
+    next_thread = (next_thread + 1) % worker_num_;
   }
 }
 
 /*
  * timeout is in millisecond
  */
-void ThreadPool::DelaySchedule(uint64_t timeout, TaskFunc func, void* arg) {
+void ThreadPool::Worker::DelaySchedule(uint64_t timeout, TaskFunc func, void* arg) {
   auto now = std::chrono::system_clock::now();
   uint64_t unow = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
   uint64_t exec_time = unow + timeout * 1000;
@@ -116,21 +124,30 @@ void ThreadPool::DelaySchedule(uint64_t timeout, TaskFunc func, void* arg) {
   }
 }
 
-size_t ThreadPool::max_queue_size() { return max_queue_size_; }
+size_t ThreadPool::Worker::max_queue_size() { return max_queue_size_; }
 
-void ThreadPool::cur_queue_size(size_t* qsize) {
+void ThreadPool::Worker::cur_queue_size(size_t* qsize) {
   std::lock_guard lock(mu_);
   *qsize = queue_.size();
 }
 
-void ThreadPool::cur_time_queue_size(size_t* qsize) {
+void ThreadPool::Worker::cur_time_queue_size(size_t* qsize) {
   std::lock_guard lock(mu_);
   *qsize = time_queue_.size();
 }
 
+size_t ThreadPool::max_queue_size() { return max_queue_size_; }
+void ThreadPool::cur_queue_size(size_t* qsize) {
+  *qsize = 10;
+}
+
+void ThreadPool::cur_time_queue_size(size_t* qsize) {
+  *qsize = 10;
+}
+
 std::string ThreadPool::thread_pool_name() { return thread_pool_name_; }
 
-void ThreadPool::runInThread() {
+void ThreadPool::Worker::runInThread() {
   while (!should_stop()) {
     std::unique_lock lock(mu_);
     rsignal_.wait(lock, [this]() { return !queue_.empty() || !time_queue_.empty() || should_stop(); });
