@@ -34,8 +34,8 @@ int ThreadPool::Worker::start() {
 
 int ThreadPool::Worker::stop() {
   should_stop_.store(true);
-  rsignal_.notify_all();
-  wsignal_.notify_all();
+  rsignal_.notify_one();
+  wsignal_.notify_one();
   if (start_.load()) {
     if (pthread_join(thread_id_, nullptr) != 0) {
       return -1;
@@ -121,7 +121,7 @@ void ThreadPool::Worker::DelaySchedule(uint64_t timeout, TaskFunc func, void* ar
   std::unique_lock lock(mu_);  
   if (!should_stop()) {
     time_queue_.emplace(exec_time, func, arg);
-    rsignal_.notify_all();
+    rsignal_.notify_one();
   }
 }
 
