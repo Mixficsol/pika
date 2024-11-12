@@ -170,7 +170,6 @@ jobs:
 
       - name: Cleanup
         run: |
-
           cp deps/lib/libz.1.dylib .
           cp deps/lib/libz.1.dylib tests/integration/
           rm -rf ./deps 
@@ -198,10 +197,9 @@ jobs:
       - name: Run Go E2E Tests
         working-directory: ${{ github.workspace }}
         run: |
-
           cd tests/integration/
           chmod +x integrate_test.sh
-  #       sh integrate_test.sh
+   #       sh integrate_test.sh
 
   build_pika_image:
     name: Build Pika Docker image

@@ -37,7 +37,7 @@ class ThreadPool : public pstd::noncopyable {
  public:
   class Worker {
    public:
-    explicit Worker(ThreadPool* tp, size_t size) : start_(false), thread_pool_(tp), should_stop_(false), max_queue_size_(size) {};
+    explicit Worker(size_t size) : start_(false), should_stop_(false), max_queue_size_(size) {};
     static void* WorkerMain(void* arg);
 
     int start();
@@ -56,7 +56,6 @@ class ThreadPool : public pstd::noncopyable {
 
     pthread_t thread_id_;
     std::atomic<bool> start_;
-    ThreadPool* const thread_pool_;
     std::string worker_name_;
     std::queue<Task> queue_;
     std::priority_queue<TimeTask> time_queue_;
@@ -83,10 +82,9 @@ class ThreadPool : public pstd::noncopyable {
    * Here we used auto poll to find the next work thread,
    * last_thread_ is the last work thread
    */
-  int last_thread_;
+
   size_t worker_num_;
   size_t max_queue_size_;
-
   std::string thread_pool_name_;
   std::vector<Worker*> workers_;
   std::atomic<bool> running_;

@@ -13,20 +13,22 @@
 
 namespace net {
 
+thread_local int last_thread_ = 0;
+
 void* ThreadPool::Worker::WorkerMain(void* arg) {
-  auto tp = static_cast<Worker*>(arg);
-  tp->runInThread();
+  Worker* worker = static_cast<Worker*>(arg);
+  worker->runInThread();
   return nullptr;
 }
 
 int ThreadPool::Worker::start() {
   if (!start_.load()) {
-    if (pthread_create(&thread_id_, nullptr, &WorkerMain, thread_pool_) != 0) {
+    if (pthread_create(&thread_id_, nullptr, &WorkerMain, this) != 0) {
       return -1;
     } else {
       start_.store(true);
       std::string thread_id_str = std::to_string(reinterpret_cast<unsigned long>(thread_id_));
-      SetThreadName(thread_id_, thread_pool_->thread_pool_name() + "_Worker_" + thread_id_str);
+      SetThreadName(thread_id_, "Worker_" + thread_id_str);
     }
   }
   return 0;
@@ -50,15 +52,14 @@ ThreadPool::ThreadPool(size_t worker_num, size_t max_queue_size, std::string thr
     : worker_num_(worker_num),
       max_queue_size_(max_queue_size),
       thread_pool_name_(std::move(thread_pool_name)),
-      running_(false),
-      last_thread_(0) {}
+      running_(false) {}
 
 ThreadPool::~ThreadPool() { stop_thread_pool(); }
 
 int ThreadPool::start_thread_pool() {
   if (!running_.load()) {
     for (size_t i = 0; i < worker_num_; ++i) {
-      workers_.push_back(new Worker(this, max_queue_size_));
+      workers_.push_back(new Worker(max_queue_size_));
       int res = workers_[i]->start();
       if (res != 0) {
         return kCreateThreadError;
@@ -101,12 +102,11 @@ void ThreadPool::Worker::Schedule(TaskFunc func, void* arg) {
 
 void ThreadPool::Schedule(TaskFunc func, void* arg) {
   int next_thread = last_thread_;
-  bool find = false;
   for (int cnt = 0; cnt < worker_num_; cnt++) {
     Worker* worker = workers_[next_thread];
     worker->Schedule(func, arg);
     last_thread_ = (next_thread + 1) % worker_num_;
-    next_thread = (next_thread + 1) % worker_num_;
+    break;
   }
 }
 
