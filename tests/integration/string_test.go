@@ -278,6 +278,85 @@ var _ = Describe("String Commands", func() {
 			Expect(getBit.Val()).To(Equal(int64(0)))
 		})
 
+		It("should support large offset for SetBit and GetBit", func() {
+			// 测试设置最大偏移量 (2^32 - 1)
+			maxOffset := int64(4294967295)
+			setBit := client.SetBit(ctx, "large_key", maxOffset, 1)
+			Expect(setBit.Err()).NotTo(HaveOccurred())
+			Expect(setBit.Val()).To(Equal(int64(0)))
+		
+			// 验证最大偏移量的值
+			getBit := client.GetBit(ctx, "large_key", maxOffset)
+			Expect(getBit.Err()).NotTo(HaveOccurred())
+			Expect(getBit.Val()).To(Equal(int64(1)))
+		
+			// 验证超出范围的偏移量 (应该返回错误)
+			invalidOffset := int64(4294967296) // 超出 2^32 - 1
+			setBit = client.SetBit(ctx, "large_key", invalidOffset, 1)
+			Expect(setBit.Err()).To(HaveOccurred())
+			Expect(setBit.Val()).To(Equal(int64(0))) // 默认返回值为 0，但错误应捕获
+		})
+
+		It("should count bits correctly for large offset", func() {
+			// 设置一些高位的 bit
+			client.SetBit(ctx, "count_key", 0, 1)
+			client.SetBit(ctx, "count_key", 100, 1)
+			client.SetBit(ctx, "count_key", 4294967295, 1) // 最大偏移量
+		
+			// 验证 BITCOUNT
+			bitCount := client.BitCount(ctx, "count_key", nil)
+			Expect(bitCount.Err()).NotTo(HaveOccurred())
+			Expect(bitCount.Val()).To(Equal(int64(3)))
+		
+			// 验证 BITCOUNT 范围
+			bitCountRange := client.BitCount(ctx, "count_key", &redis.BitCount{
+				Start: 0,
+				End:   100,
+			})
+			Expect(bitCountRange.Err()).NotTo(HaveOccurred())
+			Expect(bitCountRange.Val()).To(Equal(int64(2))) // 前 100 字节有 2 位设置为 1
+		})
+		
+		It("should find the position of bits in large range", func() {
+			// 设置一些高位的 bit
+			client.SetBit(ctx, "pos_key", 4294967295, 1) // 最大偏移量
+		
+			// 验证 BITPOS 查找第一个 1
+			bitPos := client.BitPos(ctx, "pos_key", 1)
+			Expect(bitPos.Err()).NotTo(HaveOccurred())
+			Expect(bitPos.Val()).To(Equal(int64(4294967295)))
+		
+			// 验证 BITPOS 查找第一个 0
+			bitPosZero := client.BitPos(ctx, "pos_key", 0)
+			Expect(bitPosZero.Err()).NotTo(HaveOccurred())
+			Expect(bitPosZero.Val()).To(Equal(int64(0))) // 第 0 位是第一个 0
+		})
+		
+		It("should perform BITOP operations correctly", func() {
+			// 创建多个位图
+			client.SetBit(ctx, "key1", 0, 1)
+			client.SetBit(ctx, "key2", 4294967295, 1) // 最大偏移量
+		
+			// 对位图执行 OR 操作
+			bitOp := client.BitOpAnd(ctx, "result_key", "key1", "key2")
+			Expect(bitOp.Err()).NotTo(HaveOccurred())
+		
+			// 验证结果
+			Expect(client.GetBit(ctx, "result_key", 0).Val()).To(Equal(int64(1)))      // 第 0 位应为 1
+			Expect(client.GetBit(ctx, "result_key", 4294967295).Val()).To(Equal(int64(1))) // 最大偏移量应为 1
+		})
+
+		It("should handle edge cases and errors", func() {
+			// 测试负偏移量
+			setBit := client.SetBit(ctx, "error_key", -1, 1)
+			Expect(setBit.Err()).To(HaveOccurred()) // 应返回错误
+			Expect(setBit.Val()).To(Equal(int64(0)))
+		
+			// 测试超出 Redis 字符串最大长度 (512 MB) 的操作
+			setBit = client.SetBit(ctx, "error_key", 512*1024*1024*8, 1) // 超出最大偏移量
+			Expect(setBit.Err()).To(HaveOccurred())
+		})
+		
 		It("should GetRange", func() {
 			set := client.Set(ctx, "key", "This is a string", 0)
 			Expect(set.Err()).NotTo(HaveOccurred())

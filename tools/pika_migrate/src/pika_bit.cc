@@ -27,7 +27,7 @@ void BitSetCmd::DoInitial() {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
   }
-  // value no bigger than 2^18
+  // value no bigger than 2^32
   if ( (bit_offset_ >> kMaxBitOpInputBit) > 0) {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
