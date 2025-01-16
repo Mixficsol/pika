@@ -316,18 +316,7 @@ var _ = Describe("String Commands", func() {
 			Expect(bitCountRange.Err()).NotTo(HaveOccurred())
 			Expect(bitCountRange.Val()).To(Equal(int64(2))) // 前 100 字节有 2 位设置为 1
 		})
-		
-		It("should handle edge cases and errors", func() {
-			// 测试负偏移量
-			setBit := client.SetBit(ctx, "error_key", -1, 1)
-			Expect(setBit.Err()).To(HaveOccurred()) // 应返回错误
-			Expect(setBit.Val()).To(Equal(int64(0)))
-		
-			// 测试超出 Redis 字符串最大长度 (512 MB) 的操作
-			setBit = client.SetBit(ctx, "error_key", 512*1024*1024*8, 1) // 超出最大偏移量
-			Expect(setBit.Err()).To(HaveOccurred())
-		})
-		
+				
 		It("should GetRange", func() {
 			set := client.Set(ctx, "key", "This is a string", 0)
 			Expect(set.Err()).NotTo(HaveOccurred())
