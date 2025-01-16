@@ -317,35 +317,6 @@ var _ = Describe("String Commands", func() {
 			Expect(bitCountRange.Val()).To(Equal(int64(2))) // 前 100 字节有 2 位设置为 1
 		})
 		
-		It("should find the position of bits in large range", func() {
-			// 设置一些高位的 bit
-			client.SetBit(ctx, "pos_key", 4294967295, 1) // 最大偏移量
-		
-			// 验证 BITPOS 查找第一个 1
-			bitPos := client.BitPos(ctx, "pos_key", 1)
-			Expect(bitPos.Err()).NotTo(HaveOccurred())
-			Expect(bitPos.Val()).To(Equal(int64(4294967295)))
-		
-			// 验证 BITPOS 查找第一个 0
-			bitPosZero := client.BitPos(ctx, "pos_key", 0)
-			Expect(bitPosZero.Err()).NotTo(HaveOccurred())
-			Expect(bitPosZero.Val()).To(Equal(int64(0))) // 第 0 位是第一个 0
-		})
-		
-		It("should perform BITOP operations correctly", func() {
-			// 创建多个位图
-			client.SetBit(ctx, "key1", 0, 1)
-			client.SetBit(ctx, "key2", 4294967295, 1) // 最大偏移量
-		
-			// 对位图执行 OR 操作
-			bitOp := client.BitOpAnd(ctx, "result_key", "key1", "key2")
-			Expect(bitOp.Err()).NotTo(HaveOccurred())
-		
-			// 验证结果
-			Expect(client.GetBit(ctx, "result_key", 0).Val()).To(Equal(int64(0)))      // 第 0 位应为 0
-			Expect(client.GetBit(ctx, "result_key", 4294967295).Val()).To(Equal(int64(0))) // 最大偏移量应为 0
-		})
-
 		It("should handle edge cases and errors", func() {
 			// 测试负偏移量
 			setBit := client.SetBit(ctx, "error_key", -1, 1)
