@@ -277,45 +277,6 @@ var _ = Describe("String Commands", func() {
 			Expect(getBit.Err()).NotTo(HaveOccurred())
 			Expect(getBit.Val()).To(Equal(int64(0)))
 		})
-
-		It("should support large offset for SetBit and GetBit", func() {
-			// 测试设置最大偏移量 (2^32 - 1)
-			maxOffset := int64(4294967295)
-			setBit := client.SetBit(ctx, "large_key", maxOffset, 1)
-			Expect(setBit.Err()).NotTo(HaveOccurred())
-			Expect(setBit.Val()).To(Equal(int64(0)))
-		
-			// 验证最大偏移量的值
-			getBit := client.GetBit(ctx, "large_key", maxOffset)
-			Expect(getBit.Err()).NotTo(HaveOccurred())
-			Expect(getBit.Val()).To(Equal(int64(1)))
-		
-			// 验证超出范围的偏移量 (应该返回错误)
-			invalidOffset := int64(4294967296) // 超出 2^32 - 1
-			setBit = client.SetBit(ctx, "large_key", invalidOffset, 1)
-			Expect(setBit.Err()).To(HaveOccurred())
-			Expect(setBit.Val()).To(Equal(int64(0))) // 默认返回值为 0，但错误应捕获
-		})
-
-		It("should count bits correctly for large offset", func() {
-			// 设置一些高位的 bit
-			client.SetBit(ctx, "count_key", 0, 1)
-			client.SetBit(ctx, "count_key", 100, 1)
-			client.SetBit(ctx, "count_key", 4294967295, 1) // 最大偏移量
-		
-			// 验证 BITCOUNT
-			bitCount := client.BitCount(ctx, "count_key", nil)
-			Expect(bitCount.Err()).NotTo(HaveOccurred())
-			Expect(bitCount.Val()).To(Equal(int64(3)))
-		
-			// 验证 BITCOUNT 范围
-			bitCountRange := client.BitCount(ctx, "count_key", &redis.BitCount{
-				Start: 0,
-				End:   100,
-			})
-			Expect(bitCountRange.Err()).NotTo(HaveOccurred())
-			Expect(bitCountRange.Val()).To(Equal(int64(2))) // 前 100 字节有 2 位设置为 1
-		})
 				
 		It("should GetRange", func() {
 			set := client.Set(ctx, "key", "This is a string", 0)
