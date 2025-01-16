@@ -170,7 +170,6 @@ start_server {tags {"bitops"}} {
 
         list $result_bit1 $result_bit2
     } {0 0}
-
     
     test {BITOP AND|OR|XOR don't change the string with single input key} {
         r set a "\x01\x02\xff"
