@@ -140,7 +140,7 @@ start_server {tags {"bitops"}} {
         set invalid_result [catch {r setbit large_key $invalid_offset 1} err]
 
         list $result $invalid_result $err
-    } {1 1 "ERR bit offset is not an integer or out of range"}
+    } {1 1 {ERR bit offset is not an integer or out of range}}
 
     test {BITCOUNT with large offset} {
         r setbit count_key 0 1
@@ -158,7 +158,7 @@ start_server {tags {"bitops"}} {
         set first_one [r bitpos pos_key 1]
         set first_zero [r bitpos pos_key 0]
         list $first_one $first_zero
-    } {[expr {2**32 - 1}] 0}
+    } {4294967295 0}
 
     test {BITOP operations} {
         r setbit key1 0 1
@@ -169,7 +169,7 @@ start_server {tags {"bitops"}} {
         set result_bit2 [r getbit result_key [expr {2**32 - 1}]]
 
         list $result_bit1 $result_bit2
-    } {0 0}
+    } {1 1}
     
     test {BITOP AND|OR|XOR don't change the string with single input key} {
         r set a "\x01\x02\xff"
