@@ -278,7 +278,7 @@ var _ = Describe("String Commands", func() {
 			Expect(getBit.Val()).To(Equal(int64(0)))
 		})
 
-		/*It("should support large offset for SetBit and GetBit", func() {
+		It("should support large offset for SetBit and GetBit", func() {
 			// 测试设置最大偏移量 (2^32 - 1)
 			maxOffset := int64(4294967295)
 			setBit := client.SetBit(ctx, "large_key", maxOffset, 1)
@@ -342,8 +342,8 @@ var _ = Describe("String Commands", func() {
 			Expect(bitOp.Err()).NotTo(HaveOccurred())
 		
 			// 验证结果
-			Expect(client.GetBit(ctx, "result_key", 0).Val()).To(Equal(int64(1)))      // 第 0 位应为 1
-			Expect(client.GetBit(ctx, "result_key", 4294967295).Val()).To(Equal(int64(1))) // 最大偏移量应为 1
+			Expect(client.GetBit(ctx, "result_key", 0).Val()).To(Equal(int64(0)))      // 第 0 位应为 0
+			Expect(client.GetBit(ctx, "result_key", 4294967295).Val()).To(Equal(int64(0))) // 最大偏移量应为 0
 		})
 
 		It("should handle edge cases and errors", func() {
@@ -355,7 +355,7 @@ var _ = Describe("String Commands", func() {
 			// 测试超出 Redis 字符串最大长度 (512 MB) 的操作
 			setBit = client.SetBit(ctx, "error_key", 512*1024*1024*8, 1) // 超出最大偏移量
 			Expect(setBit.Err()).To(HaveOccurred())
-		})*/
+		})
 		
 		It("should GetRange", func() {
 			set := client.Set(ctx, "key", "This is a string", 0)

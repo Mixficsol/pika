@@ -168,7 +168,7 @@ void BitPosCmd::Do(std::shared_ptr<Partition> partition) {
     s = partition->db()->BitPos(key_, bit_val_, start_offset_, end_offset_, &pos);
   }
   if (s.ok()) {
-    res_.AppendInteger((int)pos);
+    res_.AppendInteger(pos);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
