@@ -1,0 +1,158 @@
+apiVersion: apps.kubeblocks.io/v1alpha1
+kind: Cluster
+metadata:
+  name: {{ include "clustername" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{ include "pika-cluster.labels" . | nindent 4 }}
+spec:
+  terminationPolicy: {{ .Values.terminationPolicy }}
+  affinity:
+    {{- with .Values.topologyKeys }}
+    topologyKeys: {{ . | toYaml | nindent 6 }}
+    {{- end }}
+  {{- with $.Values.tolerations }}
+  tolerations: {{ . | toYaml | nindent 4 }}
+  {{- end }}
+  {{- if not .Values.useLegacyCompDef }}
+  shardingSpecs:
+  - name: group
+    shards: {{ .Values.groupCount }}
+    template:
+      name: pika
+      componentDef: pika-group
+      enabledLogs: {{ $.Values.enabledLogs | toJson | indent 4 }}
+      serviceAccountName: {{ include "pika-cluster.serviceAccountName" $ }}
+      replicas: {{ add (int $.Values.slaveCount) 1 | default 2 }}
+      {{- with  $.Values.resources.pikaGroup }}
+      resources:
+        limits:
+          cpu: {{ .limits.cpu | quote }}
+          memory: {{ .limits.memory | quote }}
+        requests:
+          cpu: {{ .requests.cpu | quote }}
+          memory: {{ .requests.memory | quote }}
+      {{- end }}
+      {{- if $.Values.persistence.enabled }}
+      volumeClaimTemplates:
+        {{- with  $.Values.persistence.pikaData }}
+        - name: data
+          spec:
+            storageClassName: {{ .storageClassName }}
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: {{ .size }}
+        {{- end }}
+      {{- end }}
+  {{- end }}
+  componentSpecs:
+    {{- if .Values.useLegacyCompDef }}
+    {{- range $i := until (int .Values.groupCount) }}
+    - name: pika-group-{{ add ($i) 1 }} # user-defined
+      componentDef: pika-group # Ref componentdefinition.name
+      enabledLogs: {{ $.Values.enabledLogs | toJson | indent 4 }}
+      replicas: {{ add (int $.Values.slaveCount) 1 | default 2 }}
+      serviceAccountName: {{ include "pika-cluster.serviceAccountName" $ }}
+      {{- with  $.Values.resources.pikaGroup }}
+      resources:
+        limits:
+          cpu: {{ .limits.cpu | quote }}
+          memory: {{ .limits.memory | quote }}
+        requests:
+          cpu: {{ .requests.cpu | quote }}
+          memory: {{ .requests.memory | quote }}
+      {{- end }}
+      {{- if $.Values.persistence.enabled }}
+      volumeClaimTemplates:
+        {{- with  $.Values.persistence.pikaData }}
+        - name: data # ref componentDefinition.containers.volumeMounts.name
+          spec:
+            storageClassName: {{ .storageClassName }}
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: {{ .size }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+    - name: etcd # user-defined
+      componentDef: pika-etcd # ref componentDefinition name
+      replicas: {{ .Values.etcdReplicaCount| default 3 }}
+      {{- with  .Values.resources.etcd }}
+      resources:
+        {{- with .limits }}
+        limits:
+          cpu: {{ .cpu | quote }}
+          memory: {{ .memory | quote }}
+        {{- end }}
+        {{- with .requests }}
+        requests:
+          cpu: {{ .cpu | quote }}
+          memory: {{ .memory | quote }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumeClaimTemplates:
+        {{- with  $.Values.persistence.etcdData }}
+        - name: data # ref componentDefinition.containers.volumeMounts.name
+          spec:
+            storageClassName: {{ .storageClassName }}
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: {{ .size }}
+        {{- end }}
+      {{- end }}
+    - name: codis-proxy
+      componentDef: pika-codis-proxy # ref componentDefinition name
+      replicas: {{ .Values.codisProxyReplicaCount | default 2 }}
+      {{- with  .Values.resources.codisProxy }}
+      resources:
+        limits:
+          cpu: {{ .limits.cpu | quote }}
+          memory: {{ .limits.memory | quote }}
+        requests:
+          cpu: {{ .requests.cpu | quote }}
+          memory: {{ .requests.memory | quote }}
+      {{- end }}
+    - name: pika-exporter
+      componentDef: pika-exporter # ref componentDefinition name
+      monitor: {{ .Values.monitor.enabled | default false }}
+      replicas: 1
+      {{- with  .Values.resources.pikaExporter }}
+      resources:
+        limits:
+          cpu: {{ .limits.cpu | quote }}
+          memory: {{ .limits.memory | quote }}
+        requests:
+          cpu: {{ .requests.cpu | quote }}
+          memory: {{ .requests.memory | quote }}
+      {{- end }}
+    - name: codis-fe
+      componentDef: pika-codis-fe # ref componentDefinition name
+      replicas: {{ .Values.codisFeReplicaCount | default 1 }}
+      {{- with  .Values.resources.codisFe }}
+      resources:
+        limits:
+          cpu: {{ .limits.cpu | quote }}
+          memory: {{ .limits.memory | quote }}
+        requests:
+          cpu: {{ .requests.cpu | quote }}
+          memory: {{ .requests.memory | quote }}
+      {{- end }}
+    - name: codis-dashboard
+      componentDef: pika-codis-dashboard # ref componentDefinition name
+      replicas: 1
+    {{- with  .Values.resources.codisFe }}
+      resources:
+        limits:
+          cpu: {{ .limits.cpu | quote }}
+          memory: {{ .limits.memory | quote }}
+        requests:
+          cpu: {{ .requests.cpu | quote }}
+          memory: {{ .requests.memory | quote }}
+    {{- end }}
